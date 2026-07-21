@@ -182,18 +182,24 @@ async def extract_text_stream(file: UploadFile = File(...)):
             yield f"data: {json.dumps({'page': 0, 'total': num_pages, 'done': False, 'status': 'starting'})}\n\n"
 
             # Process pages concurrently, yield progress as each finishes
-            futures = {
-                loop.run_in_executor(executor, extract_page, doc[i], tess): i
+            pending = {
+                asyncio.ensure_future(
+                    loop.run_in_executor(executor, extract_page, doc[i], tess)
+                ): i
                 for i in range(num_pages)
             }
 
             completed = 0
-            for coro in asyncio.as_completed(list(futures.keys())):
-                page_idx = futures[coro]
-                page_text, used_ocr = await coro
-                all_pages[page_idx] = page_text
-                completed += 1
-                yield f"data: {json.dumps({'page': completed, 'total': num_pages, 'done': False, 'ocr': used_ocr})}\n\n"
+            while pending:
+                done_set, _ = await asyncio.wait(
+                    list(pending.keys()), return_when=asyncio.FIRST_COMPLETED
+                )
+                for fut in done_set:
+                    page_idx = pending.pop(fut)
+                    page_text, used_ocr = fut.result()
+                    all_pages[page_idx] = page_text
+                    completed += 1
+                    yield f"data: {json.dumps({'page': completed, 'total': num_pages, 'done': False, 'ocr': used_ocr})}\n\n"
 
             doc.close()
 
