@@ -14,7 +14,13 @@ app = FastAPI(title="NextOz PDF Extractor")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # Allow localhost for dev + your Vercel domain for production
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://nextoz.vercel.app",      # replace with your actual Vercel URL
+        "https://*.vercel.app",
+    ],
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
